@@ -78,5 +78,30 @@ class TestParallelAssignees(IsolatedEnvironmentTestCase):
         descriptions = {t.get("description") for t in active_tasks}
         self.assertEqual(descriptions, {"Bob Task", "Alice Task 2"})
 
+    def test_active_task_reassigned_or_project_changed(self):
+        # Create Task 1 (Alice, ProjA) and Task 2 (Bob, ProjB)
+        self.runner.task("add", "Active Task", "project:ProjA", "assignee:Alice")
+        self.runner.task("add", "Bob Task ProjB", "project:ProjB", "assignee:Bob")
+
+        # Start Task 1 (Alice, ProjA)
+        self.runner.task("1", "start")
+        time.sleep(0.2)
+
+        # Start Task 2 (Bob, ProjB)
+        self.runner.task("2", "start")
+        time.sleep(0.2)
+
+        # Now reassign Task 1 to Bob in ProjB while it is running!
+        # Task 1 becomes (Bob, ProjB). Since Task 2 (Bob, ProjB) is active, Task 2 should auto-stop!
+        self.runner.task("1", "modify", "project:ProjB", "assignee:Bob")
+        time.sleep(0.3)
+
+        res = self.runner.task("+ACTIVE", "export")
+        active_tasks = json.loads(res.stdout)
+        self.assertEqual(len(active_tasks), 1, f"Expected 1 active task after reassignment conflict, got {len(active_tasks)}")
+        self.assertEqual(active_tasks[0].get("description"), "Active Task")
+        self.assertEqual(active_tasks[0].get("assignee"), "Bob")
+        self.assertEqual(active_tasks[0].get("project"), "ProjB")
+
 if __name__ == "__main__":
     unittest.main()

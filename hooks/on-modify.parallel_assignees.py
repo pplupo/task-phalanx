@@ -65,6 +65,8 @@ def main():
 
     old_assignee = old_task.get("assignee", "")
     new_assignee = new_task.get("assignee", "")
+    old_project = old_task.get("project", "")
+    new_project = new_task.get("project", "")
 
     # 1. Update assignee history if assignee changed
     if new_assignee and new_assignee != old_assignee:
@@ -77,16 +79,33 @@ def main():
         else:
             new_task["assigneehistory"] = entry
 
-    # 2. Check task start/stop state changes
+    # 2. Check task active status and project/assignee pair changes
     was_active = bool(old_task.get("start"))
     is_active = bool(new_task.get("start"))
+    pair_changed = (old_assignee != new_assignee) or (old_project != new_project)
 
     has_timew = shutil.which("timew") is not None
 
-    if not was_active and is_active:
-        # Task started!
+    # Stop Timewarrior on old pair if task was active AND (stopping OR moving to a new pair)
+    if was_active and (not is_active or pair_changed):
+        if has_timew:
+            timew_dir = get_timew_dir(old_assignee, old_project)
+            timew_env = os.environ.copy()
+            timew_env["TIMEWDATA"] = timew_dir
+            try:
+                subprocess.run(
+                    ["timew", "stop"],
+                    env=timew_env,
+                    capture_output=True,
+                    text=True
+                )
+            except Exception as ex:
+                sys.stderr.write(f"Failed to stop Timewarrior for old pair: {ex}\n")
+
+    # Start Timewarrior & auto-stop conflicting tasks on new pair if task is active AND (starting OR moving from an old pair)
+    if is_active and (not was_active or pair_changed):
         target_assignee = new_assignee
-        target_project = new_task.get("project", "")
+        target_project = new_project
         uuid_to_start = new_task.get("uuid", "")
         description = new_task.get("description", "Task")
 
@@ -124,25 +143,7 @@ def main():
                     text=True
                 )
             except Exception as ex:
-                sys.stderr.write(f"Failed to start Timewarrior: {ex}\n")
-
-    elif was_active and not is_active:
-        # Task stopped or completed!
-        target_assignee = old_assignee
-        target_project = old_task.get("project", "")
-        if has_timew:
-            timew_dir = get_timew_dir(target_assignee, target_project)
-            timew_env = os.environ.copy()
-            timew_env["TIMEWDATA"] = timew_dir
-            try:
-                subprocess.run(
-                    ["timew", "stop"],
-                    env=timew_env,
-                    capture_output=True,
-                    text=True
-                )
-            except Exception as ex:
-                sys.stderr.write(f"Failed to stop Timewarrior: {ex}\n")
+                sys.stderr.write(f"Failed to start Timewarrior for new pair: {ex}\n")
 
     print(json.dumps(new_task))
     sys.exit(0)
