@@ -9,7 +9,7 @@
 
 ### Session 2026-09-23
 - Q: How should the accumulative assignee history entries be formatted and delimited in the assigneehistory UDA field? → A: ISO-8601 timestamp with semicolon delimiter (e.g., `2026-09-23T10:00:00Z: Alice; 2026-09-23T12:00:00Z: Bob`).
-- Q: How should Timewarrior support tracking multiple parallel task intervals simultaneously across assignees? → A: Use separate Timewarrior database directories per project and assignee via `TIMEWDATA` (e.g., `~/.timewarrior/projects/<project_slug>/assignees/<assignee_slug>/`), enabling independent concurrent active time intervals per project and assignee.
+- Q: How should Timewarrior support tracking multiple parallel task intervals simultaneously across assignees? → A: Use separate Timewarrior database directories per project and assignee via `TIMEWARRIORDB` (e.g., `~/.timewarrior/projects/<project_slug>/assignees/<assignee_slug>/`), enabling independent concurrent active time intervals per project and assignee.
 - Q: How should TaskChampion sync compatibility be ensured? → A: Assignee UDAs (`assignee` and `assigneehistory`) must use standard Taskwarrior UDA string configurations registered in Taskwarrior config, ensuring seamless JSON synchronization via TaskChampion sync hooks/commands without schema drift.
 - Q: How should stock `on-modify.timewarrior` hook conflict be handled? → A: `setup.sh` detects and disables the stock `on-modify.timewarrior` hook by removing executable permissions and renaming to `on-modify.timewarrior.disabled`, preventing global single-interval timeline conflicts.
 
@@ -49,16 +49,16 @@ As a team member or multi-context worker, I want starting a task with a specifie
 
 ### User Story 3 - Per-Project Per-Assignee Timewarrior Independent Interval Tracking (Priority: P3)
 
-As a user tracking time across multiple assignees and projects, I want Timewarrior to maintain independent active tracking intervals for each `(project, assignee)` pair using distinct `TIMEWDATA` databases.
+As a user tracking time across multiple assignees and projects, I want Timewarrior to maintain independent active tracking intervals for each `(project, assignee)` pair using distinct `TIMEWARRIORDB` databases.
 
 **Why this priority**: Overcomes Timewarrior's single-active-interval limitation by isolating database contexts per project and assignee.
 
-**Independent Test**: Can be tested by starting a task for Alice in ProjA and a task for Alice in ProjB, then verifying that `TIMEWDATA=.../projects/proja/assignees/alice timew` and `TIMEWDATA=.../projects/projb/assignees/alice timew` each show an active running interval.
+**Independent Test**: Can be tested by starting a task for Alice in ProjA and a task for Alice in ProjB, then verifying that `TIMEWARRIORDB=.../projects/proja/assignees/alice timew` and `TIMEWARRIORDB=.../projects/projb/assignees/alice timew` each show an active running interval.
 
 **Acceptance Scenarios**:
 
-1. **Given** Timewarrior is installed, **When** Task 1 is started for `Alice` in `ProjA`, **Then** an active interval is recorded in `TIMEWDATA=~/.timewarrior/projects/proja/assignees/alice`.
-2. **Given** Task 1 is active for `Alice` in `ProjA`, **When** Task 2 is started for `Alice` in `ProjB`, **Then** Task 1's interval in `proja/assignees/alice` remains active, and a new active interval is started in `TIMEWDATA=~/.timewarrior/projects/projb/assignees/alice`.
+1. **Given** Timewarrior is installed, **When** Task 1 is started for `Alice` in `ProjA`, **Then** an active interval is recorded in `TIMEWARRIORDB=~/.timewarrior/projects/proja/assignees/alice`.
+2. **Given** Task 1 is active for `Alice` in `ProjA`, **When** Task 2 is started for `Alice` in `ProjB`, **Then** Task 1's interval in `proja/assignees/alice` remains active, and a new active interval is started in `TIMEWARRIORDB=~/.timewarrior/projects/projb/assignees/alice`.
 
 ---
 
@@ -79,7 +79,7 @@ As an auditor or project manager, I want every assignment or re-assignment of a 
 
 ### Edge Cases
 
-- What happens when a task is started without passing an `assignee` argument when prior tasks are running? (Unassigned tasks are managed under an `unassigned` assignee scope using `TIMEWDATA=~/.timewarrior/projects/<proj>/assignees/unassigned/`).
+- What happens when a task is started without passing an `assignee` argument when prior tasks are running? (Unassigned tasks are managed under an `unassigned` assignee scope using `TIMEWARRIORDB=~/.timewarrior/projects/<proj>/assignees/unassigned/`).
 - What happens if stock `on-modify.timewarrior` hook is present in Taskwarrior hooks directory? (`setup.sh` disables executable bit `chmod -x` and renames to `.disabled` so it does not interfere).
 - What happens if special characters or spaces exist in an assignee's or project's name? (Assignee and project names are sanitized to safe filesystem slugs, e.g. `proj_a`, `john_doe`).
 
@@ -97,7 +97,7 @@ As an auditor or project manager, I want every assignment or re-assignment of a 
 - **FR-008**: The system MUST append `<ISO-8601-timestamp>: <assignee>` to the accumulative assignee history UDA whenever `assignee` is set or modified, separated by `; `, preserving all historical entries.
 - **FR-009**: The setup script MUST detect whether Timewarrior is present on the system.
 - **FR-010**: If Timewarrior is present, the system MUST configure per-project/per-assignee Timewarrior database directories (`~/.timewarrior/projects/<project_slug>/assignees/<assignee_slug>/`).
-- **FR-011**: If Timewarrior is present, the system MUST invoke `TIMEWDATA=~/.timewarrior/projects/<project_slug>/assignees/<assignee_slug>/ timew start/stop` hooks matching task start/stop events per project/assignee, allowing concurrent active Timewarrior intervals across different assignees or projects.
+- **FR-011**: If Timewarrior is present, the system MUST invoke `TIMEWARRIORDB=~/.timewarrior/projects/<project_slug>/assignees/<assignee_slug>/ timew start/stop` hooks matching task start/stop events per project/assignee, allowing concurrent active Timewarrior intervals across different assignees or projects.
 - **FR-012**: Assignee and project names used for filesystem directory paths MUST be sanitized to safe slugs while preserving full original strings in Taskwarrior UDAs.
 - **FR-013**: The setup script MUST detect and disable any pre-existing stock `on-modify.timewarrior` hook script in the target hooks directory to prevent global timeline conflicts.
 
@@ -114,7 +114,7 @@ As an auditor or project manager, I want every assignment or re-assignment of a 
 
 - **SC-001**: 100% of setup script runs complete cleanly with exit code 0 when executed 1, 2, or 10 consecutive times on a clean or pre-configured system.
 - **SC-002**: Multiple tasks assigned to different assignees OR to the same assignee across different projects can be started and remain active simultaneously in Taskwarrior.
-- **SC-003**: Starting a task for Alice in ProjA starts an active interval in `TIMEWDATA=.../proja/assignees/alice` while Alice's active interval in `TIMEWDATA=.../projb/assignees/alice` remains active simultaneously.
+- **SC-003**: Starting a task for Alice in ProjA starts an active interval in `TIMEWARRIORDB=.../proja/assignees/alice` while Alice's active interval in `TIMEWARRIORDB=.../projb/assignees/alice` remains active simultaneously.
 - **SC-004**: Reassigning a task 3 times results in all 3 assignment events recorded in chronological order in the task's `assigneehistory` UDA field.
 - **SC-005**: Starting a task for Assignee A in ProjA stops 100% of currently active tasks for Assignee A in ProjA while 0% of active tasks for Assignee A in ProjB or Assignee B in ProjA are stopped.
 - **SC-006**: Taskwarrior tasks with `assignee` and `assigneehistory` attributes sync cleanly with TaskChampion without errors or data loss.

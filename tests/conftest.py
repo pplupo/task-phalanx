@@ -23,7 +23,7 @@ class TaskRunner:
         cmd = ["timew"] + list(args)
         run_env = self.env.copy()
         if timewdata:
-            run_env["TIMEWDATA"] = str(timewdata)
+            run_env["TIMEWARRIORDB"] = str(timewdata)
         res = subprocess.run(cmd, env=run_env, capture_output=True, text=True)
         if check and res.returncode != 0:
             raise RuntimeError(f"Timewarrior command failed ({res.returncode}): {res.stderr}\nOutput: {res.stdout}")
@@ -55,7 +55,7 @@ class IsolatedEnvironmentTestCase(unittest.TestCase):
         env = os.environ.copy()
         env["TASKRC"] = taskrc
         env["TASKDATA"] = taskdata
-        env["TIMEWDATA"] = timewdata
+        env["TIMEWARRIORDB"] = timewdata
 
         self.runner = TaskRunner(env, self.test_dir, hooks_dir, taskdata, timewdata)
 

@@ -17,7 +17,7 @@ def get_timew_dir(assignee, project):
     assignee_slug = sanitize_slug(assignee)
     project_slug = sanitize_slug(project)
     
-    base_timew = os.environ.get("TIMEWDATA")
+    base_timew = os.environ.get("TIMEWARRIORDB")
     if not base_timew:
         base_timew = os.path.expanduser("~/.timewarrior")
     
@@ -91,7 +91,7 @@ def main():
         if has_timew:
             timew_dir = get_timew_dir(old_assignee, old_project)
             timew_env = os.environ.copy()
-            timew_env["TIMEWDATA"] = timew_dir
+            timew_env["TIMEWARRIORDB"] = timew_dir
             try:
                 subprocess.run(
                     ["timew", "stop"],
@@ -134,7 +134,7 @@ def main():
         if has_timew:
             timew_dir = get_timew_dir(target_assignee, target_project)
             timew_env = os.environ.copy()
-            timew_env["TIMEWDATA"] = timew_dir
+            timew_env["TIMEWARRIORDB"] = timew_dir
             try:
                 subprocess.run(
                     ["timew", "start", description, f"uuid:{uuid_to_start}"],

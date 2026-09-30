@@ -54,8 +54,8 @@ fi
 # 5. Timewarrior detection and setup
 if command -v timew &>/dev/null; then
     echo "Timewarrior detected."
-    if [ -n "${TIMEWDATA:-}" ]; then
-        TIMEW_BASE="${TIMEWDATA}"
+    if [ -n "${TIMEWARRIORDB:-}" ]; then
+        TIMEW_BASE="${TIMEWARRIORDB}"
     else
         TIMEW_BASE="${HOME}/.timewarrior"
     fi
