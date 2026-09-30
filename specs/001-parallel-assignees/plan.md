@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implement an idempotent setup script and Taskwarrior hook system (`on-modify`, `on-add`) in Python 3 / Bash compatible with Taskwarrior 3.x TaskChampion sync. The solution introduces `assignee` and accumulative `assigneehistory` UDAs. Starting a task automatically stops active tasks belonging *only* to the same assignee (or unassigned scope), allowing tasks assigned to different assignees to run concurrently. If Timewarrior is installed, setup initializes per-assignee data directories (`~/.timewarrior/assignees/<assignee_slug>/`), invoking `TIMEWDATA` scoped commands so Timewarrior independently tracks parallel time intervals per assignee.
+Implement an idempotent setup script (`setup.sh`) and Taskwarrior hook system (`on-modify`, `on-add`) in Python 3 / Bash compatible with Taskwarrior 3.x TaskChampion sync. The solution introduces `assignee` and accumulative `assigneehistory` UDAs. Starting a task automatically stops active tasks belonging *only* to the same assignee AND project (or unassigned scope), allowing tasks assigned to different assignees OR tasks across different projects to run concurrently. If Timewarrior is installed, setup disables any conflicting stock `on-modify.timewarrior` hook and initializes per-project/per-assignee data directories (`~/.timewarrior/projects/<project_slug>/assignees/<assignee_slug>/`), invoking `TIMEWDATA` scoped commands so Timewarrior independently tracks parallel time intervals per project and assignee.
 
 ## Technical Context
 
@@ -14,9 +14,9 @@ Implement an idempotent setup script and Taskwarrior hook system (`on-modify`, `
 
 **Primary Dependencies**: Taskwarrior (`task` CLI v2/v3), TaskChampion sync, optional Timewarrior (`timew` CLI)
 
-**Storage**: Taskwarrior UDA fields (`uda.assignee`, `uda.assigneehistory`) on task JSON objects; per-assignee Timewarrior data folders under `~/.timewarrior/assignees/`
+**Storage**: Taskwarrior UDA fields (`uda.assignee`, `uda.assigneehistory`) on task JSON objects; per-project/assignee Timewarrior data folders under `~/.timewarrior/projects/`
 
-**Testing**: Pytest / Bash unit and integration test scripts using isolated temporary `TASKRC`, `TASKDATA`, and `TIMEWDATA`
+**Testing**: Pytest / Python standard `unittest` scripts using isolated temporary `TASKRC`, `TASKDATA`, and `TIMEWDATA`
 
 **Target Platform**: Linux / POSIX environment
 
@@ -24,7 +24,7 @@ Implement an idempotent setup script and Taskwarrior hook system (`on-modify`, `
 
 **Performance Goals**: Hook processing completes in < 50ms per task invocation
 
-**Constraints**: Idempotent installation; TaskChampion sync compatibility; zero external dependencies beyond Python 3 standard library and Taskwarrior/Timewarrior
+**Constraints**: Idempotent installation; TaskChampion sync compatibility; disable stock Timewarrior hook; zero external dependencies beyond Python 3 standard library and Taskwarrior/Timewarrior
 
 **Scale/Scope**: Single setup script (`setup.sh`), hook script(s) in `hooks/`, test suite in `tests/`
 
@@ -35,7 +35,7 @@ Implement an idempotent setup script and Taskwarrior hook system (`on-modify`, `
 - **Library-First / Modular**: Hooks and setup scripts are self-contained and modular.
 - **CLI Interface**: Standard stdin/stdout JSON interface for Taskwarrior hooks; command line interface for `setup.sh`.
 - **Test-First**: Full automated integration tests with isolated Taskwarrior instances prior to implementation.
-- **Simplicity**: Procedural Python 3 hooks using standard library `json`, `sys`, and `os`. No bloated framework or dependencies.
+- **Simplicity**: Procedural Python 3 hooks using standard library `json`, `sys`, `re`, `shutil`, `os`. No bloated framework or dependencies.
 
 ## Project Structure
 
@@ -55,16 +55,16 @@ specs/001-parallel-assignees/
 ### Source Code Structure
 
 ```text
-setup.sh                 # Idempotent installation script
+setup.sh                 # Idempotent installation script (disables stock timew hook)
 hooks/
 ├── on-add.parallel_assignees.py    # Assignee history tracking on task creation
-└── on-modify.parallel_assignees.py # Parallel task start/stop, history, & TIMEWDATA invocation
+└── on-modify.parallel_assignees.py # Per-project/assignee task start/stop & TIMEWDATA invocation
 
 tests/
 ├── conftest.py          # Isolated Taskwarrior & Timewarrior test environment fixtures
-├── test_idempotency.py  # Tests for setup.sh repeatability
-├── test_parallel.py     # Tests for parallel assignee task start/stop behavior
-├── test_timewarrior.py # Tests for per-assignee TIMEWDATA interval tracking
+├── test_idempotency.py  # Tests for setup.sh repeatability & stock hook disabling
+├── test_parallel.py     # Tests for per-project/assignee parallel task execution
+├── test_timewarrior.py # Tests for per-project/assignee TIMEWDATA interval tracking
 └── test_history.py      # Tests for accumulative assigneehistory field
 ```
 

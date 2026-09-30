@@ -13,25 +13,25 @@ def sanitize_slug(name):
     slug = re.sub(r'[^a-zA-Z0-9_-]', '_', name.strip().lower())
     return slug or "unassigned"
 
-def get_timew_dir(assignee):
-    slug = sanitize_slug(assignee)
+def get_timew_dir(assignee, project):
+    assignee_slug = sanitize_slug(assignee)
+    project_slug = sanitize_slug(project)
+    
     base_timew = os.environ.get("TIMEWDATA")
     if not base_timew:
         base_timew = os.path.expanduser("~/.timewarrior")
     
-    if os.path.basename(base_timew) == slug:
-        assignee_dir = base_timew
-    elif "assignees" in base_timew and not base_timew.endswith("assignees"):
+    if "projects" in base_timew and "assignees" in base_timew:
         assignee_dir = base_timew
     else:
-        assignee_dir = os.path.join(base_timew, "assignees", slug)
+        assignee_dir = os.path.join(base_timew, "projects", project_slug, "assignees", assignee_slug)
     
     os.makedirs(assignee_dir, exist_ok=True)
     cfg_file = os.path.join(assignee_dir, "timew.cfg")
     if not os.path.exists(cfg_file):
         try:
             with open(cfg_file, "w") as f:
-                f.write("# Timewarrior configuration for assignee\n")
+                f.write("# Timewarrior configuration for project/assignee\n")
         except Exception:
             pass
     return assignee_dir
@@ -86,6 +86,7 @@ def main():
     if not was_active and is_active:
         # Task started!
         target_assignee = new_assignee
+        target_project = new_task.get("project", "")
         uuid_to_start = new_task.get("uuid", "")
         description = new_task.get("description", "Task")
 
@@ -94,15 +95,15 @@ def main():
             "time.sleep(0.05); "
             "env = os.environ.copy(); "
             "env['PARALLEL_ASSIGNEES_HOOK_ACTIVE'] = '1'; "
-            "target = sys.argv[1]; curr_uuid = sys.argv[2]; "
+            "target_assignee = sys.argv[1]; target_project = sys.argv[2]; curr_uuid = sys.argv[3]; "
             "res = subprocess.run(['task', 'rc.confirmation=no', 'status:pending', '+ACTIVE', 'export'], env=env, capture_output=True, text=True); "
             "tasks = json.loads(res.stdout) if res.returncode == 0 and res.stdout.strip() else []; "
-            "[subprocess.run(['task', 'rc.confirmation=no', t['uuid'], 'stop'], env=env, capture_output=True) for t in tasks if t.get('uuid') != curr_uuid and t.get('assignee', '') == target]"
+            "[subprocess.run(['task', 'rc.confirmation=no', t['uuid'], 'stop'], env=env, capture_output=True) for t in tasks if t.get('uuid') != curr_uuid and t.get('assignee', '') == target_assignee and t.get('project', '') == target_project]"
         )
         
         try:
             subprocess.Popen(
-                [sys.executable, "-c", bg_code, target_assignee, uuid_to_start],
+                [sys.executable, "-c", bg_code, target_assignee, target_project, uuid_to_start],
                 env=os.environ.copy(),
                 start_new_session=True,
                 stdout=subprocess.DEVNULL,
@@ -112,7 +113,7 @@ def main():
             sys.stderr.write(f"Failed to spawn auto-stop helper: {ex}\n")
 
         if has_timew:
-            timew_dir = get_timew_dir(target_assignee)
+            timew_dir = get_timew_dir(target_assignee, target_project)
             timew_env = os.environ.copy()
             timew_env["TIMEWDATA"] = timew_dir
             try:
@@ -128,8 +129,9 @@ def main():
     elif was_active and not is_active:
         # Task stopped or completed!
         target_assignee = old_assignee
+        target_project = old_task.get("project", "")
         if has_timew:
-            timew_dir = get_timew_dir(target_assignee)
+            timew_dir = get_timew_dir(target_assignee, target_project)
             timew_env = os.environ.copy()
             timew_env["TIMEWDATA"] = timew_dir
             try:

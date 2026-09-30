@@ -30,6 +30,14 @@ fi
 echo "Installing task-phalanx hooks into ${TARGET_HOOKS_DIR}..."
 mkdir -p "${TARGET_HOOKS_DIR}"
 
+# 4. Disable stock on-modify.timewarrior hook if present to prevent global single-interval timeline conflict
+STOCK_TIMEW_HOOK="${TARGET_HOOKS_DIR}/on-modify.timewarrior"
+if [ -f "${STOCK_TIMEW_HOOK}" ]; then
+    echo "Disabling stock on-modify.timewarrior hook (prevents global timeline conflicts)..."
+    chmod -x "${STOCK_TIMEW_HOOK}" || true
+    mv "${STOCK_TIMEW_HOOK}" "${STOCK_TIMEW_HOOK}.disabled" || true
+fi
+
 if [ -d "${SOURCE_HOOKS_DIR}" ]; then
     for hook_file in "${SOURCE_HOOKS_DIR}"/*; do
         if [ -f "${hook_file}" ]; then
@@ -43,7 +51,7 @@ else
     echo "Warning: Source hooks directory (${SOURCE_HOOKS_DIR}) not found." >&2
 fi
 
-# 4. Timewarrior detection and setup
+# 5. Timewarrior detection and setup
 if command -v timew &>/dev/null; then
     echo "Timewarrior detected."
     if [ -n "${TIMEWDATA:-}" ]; then
@@ -51,9 +59,9 @@ if command -v timew &>/dev/null; then
     else
         TIMEW_BASE="${HOME}/.timewarrior"
     fi
-    ASSIGNEES_DIR="${TIMEW_BASE}/assignees"
-    mkdir -p "${ASSIGNEES_DIR}"
-    echo "  Initialized per-assignee Timewarrior directory: ${ASSIGNEES_DIR}"
+    PROJECTS_DIR="${TIMEW_BASE}/projects"
+    mkdir -p "${PROJECTS_DIR}"
+    echo "  Initialized per-project/assignee Timewarrior directory: ${PROJECTS_DIR}"
 else
     echo "Timewarrior not detected in PATH. Skipping Timewarrior directory creation."
 fi

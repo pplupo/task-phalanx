@@ -13,9 +13,9 @@ class TestParallelAssignees(IsolatedEnvironmentTestCase):
         subprocess.run([setup_script], env=self.runner.env, capture_output=True, text=True, check=True)
 
     def test_parallel_task_execution_different_assignees(self):
-        # Create Task A for Alice and Task B for Bob
-        self.runner.task("add", "Task A", "assignee:Alice")
-        self.runner.task("add", "Task B", "assignee:Bob")
+        # Create Task A for Alice and Task B for Bob in same project
+        self.runner.task("add", "Task A", "project:ProjA", "assignee:Alice")
+        self.runner.task("add", "Task B", "project:ProjA", "assignee:Bob")
 
         # Start Task A (Alice)
         self.runner.task("1", "start")
@@ -33,11 +33,31 @@ class TestParallelAssignees(IsolatedEnvironmentTestCase):
         assignees = {t.get("assignee") for t in active_tasks}
         self.assertEqual(assignees, {"Alice", "Bob"})
 
-    def test_same_assignee_task_autostop(self):
-        # Create Task 1 and Task 2 for Alice, Task 3 for Bob
-        self.runner.task("add", "Alice Task 1", "assignee:Alice")
-        self.runner.task("add", "Bob Task", "assignee:Bob")
-        self.runner.task("add", "Alice Task 2", "assignee:Alice")
+    def test_same_assignee_different_projects_parallel(self):
+        # Create Task 1 for Alice in ProjA and Task 2 for Alice in ProjB
+        self.runner.task("add", "Alice Task ProjA", "project:ProjA", "assignee:Alice")
+        self.runner.task("add", "Alice Task ProjB", "project:ProjB", "assignee:Alice")
+
+        # Start Alice Task ProjA
+        self.runner.task("1", "start")
+        time.sleep(0.2)
+
+        # Start Alice Task ProjB -> Should NOT stop Alice Task ProjA because projects differ!
+        self.runner.task("2", "start")
+        time.sleep(0.2)
+
+        res = self.runner.task("+ACTIVE", "export")
+        active_tasks = json.loads(res.stdout)
+        self.assertEqual(len(active_tasks), 2, f"Expected 2 active tasks across projects for Alice, got {len(active_tasks)}")
+
+        projects = {t.get("project") for t in active_tasks}
+        self.assertEqual(projects, {"ProjA", "ProjB"})
+
+    def test_same_assignee_same_project_autostop(self):
+        # Create Task 1 and Task 3 for Alice in ProjA, Task 2 for Bob in ProjA
+        self.runner.task("add", "Alice Task 1", "project:ProjA", "assignee:Alice")
+        self.runner.task("add", "Bob Task", "project:ProjA", "assignee:Bob")
+        self.runner.task("add", "Alice Task 2", "project:ProjA", "assignee:Alice")
 
         # Start Alice Task 1
         self.runner.task("1", "start")
@@ -47,7 +67,7 @@ class TestParallelAssignees(IsolatedEnvironmentTestCase):
         self.runner.task("2", "start")
         time.sleep(0.2)
 
-        # Start Alice Task 2 -> Should stop Alice Task 1, leave Bob Task active
+        # Start Alice Task 2 in ProjA -> Should stop Alice Task 1 (same project & assignee), leave Bob Task active
         self.runner.task("3", "start")
         time.sleep(0.3)
 
